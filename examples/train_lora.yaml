@@ -1,0 +1,51 @@
+# mlx-vla configuration example - LoRA fine-tuning
+# Usage: mlx-vla train --config examples/train_lora.yaml
+# Or:   from mlx_vla import load_config; cfg = load_config("examples/train_lora.yaml")
+
+model:
+  name: openvla-7b
+  vision_backbone: clip
+  vision_hidden_dim: 768
+  language_hidden_dim: 4096
+  fusion_type: cross_attention
+  action_type: discrete
+  action_dim: 7
+  action_horizon: 1
+  num_action_bins: 256
+
+lora:
+  enabled: true
+  rank: 8
+  alpha: 16
+  dropout: 0.05
+  target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+
+data:
+  dataset_name: bridge_v2
+  image_size: 224
+  batch_size: 1
+  num_workers: 0
+  action_normalization: clip_minus_one_to_one
+
+training:
+  epochs: 3
+  learning_rate: 1.0e-4
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 8
+  lr_scheduler_type: cosine
+
+checkpointing:
+  output_dir: ./vla_output
+  save_steps: 500
+  save_total_limit: 3
+  resume_from: null
+
+logging:
+  logging_steps: 10
+  log_dir: null

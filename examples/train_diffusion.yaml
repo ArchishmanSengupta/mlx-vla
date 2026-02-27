@@ -1,0 +1,48 @@
+# mlx-vla configuration example - Diffusion policy
+# Usage: mlx-vla train --config examples/train_diffusion.yaml
+
+model:
+  name: octo-small
+  vision_backbone: dinov2
+  vision_hidden_dim: 768
+  language_hidden_dim: 512
+  fusion_type: concat
+  action_type: diffusion
+  action_dim: 7
+  action_horizon: 4
+  num_action_bins: 256
+
+lora:
+  enabled: true
+  rank: 16
+  alpha: 32
+  dropout: 0.1
+  target_modules:
+    - q_proj
+    - v_proj
+
+data:
+  dataset_name: oxe/bridge_v2
+  image_size: 224
+  batch_size: 2
+  num_workers: 0
+  action_normalization: clip_minus_one_to_one
+
+training:
+  epochs: 10
+  learning_rate: 5.0e-5
+  warmup_ratio: 0.1
+  weight_decay: 0.01
+  max_grad_norm: 1.0
+  gradient_accumulation_steps: 4
+  lr_scheduler_type: cosine
+
+checkpointing:
+  output_dir: ./diffusion_vla_output
+  save_steps: 250
+  save_total_limit: 5
+  resume_from: null
+
+logging:
+  logging_steps: 20
+  log_dir: ./logs
