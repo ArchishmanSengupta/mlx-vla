@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mlx-vla"
+version = "0.1.0"
+description = "Vision-Language-Action training framework for Apple Silicon using MLX"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "mlx-vla Team", email = "team@mlx-vla.org"}
+]
+keywords = ["machine-learning", "robotics", "vla", "vision-language-action", "mlx", "apple-silicon"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Robotics",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "mlx>=0.18.0",
+    "numpy>=1.24.0",
+    "pillow>=10.0.0",
+    "tqdm>=4.65.0",
+    "pyyaml>=6.0",
+    "omegaconf>=2.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+training = [
+    "mlx-lm>=0.1.0",
+]
+all = [
+    "mlx-vla[dev,training]",
+]
+
+[project.scripts]
+mlx-vla = "mlx_vla.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/ArchishmanSengupta/mlx-vla"
+Documentation = "https://docs.mlx-vla.org"
+Repository = "https://github.com/ArchishmanSengupta/mlx-vla"
+Issues = "https://github.com/ArchishmanSengupta/mlx-vla/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mlx_vla*"]
+
+[tool.setuptools.package-data]
+mlx_vla = ["py.typed"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
