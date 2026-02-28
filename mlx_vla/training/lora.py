@@ -16,8 +16,9 @@ class LoRALayer(nn.Module):
         self.alpha = alpha
         self.scaling = alpha / rank
 
+        # Freeze the base layer parameters
         for p in base_layer.parameters():
-            p.frozen = True
+            p.trainable = False
 
         in_dim = base_layer.weight.shape[1]
         out_dim = base_layer.weight.shape[0]
@@ -78,31 +79,23 @@ def apply_lora(
     return traverse_and_replace(model)
 
 def merge_lora(model: nn.Module) -> nn.Module:
-
-    for module in model.modules():
+    """Merge LoRA weights back into the base layer."""
+    # Collect LoRA modules with their names first
+    lora_modules = []
+    for name, module in model.named_modules():
         if isinstance(module, LoRALayer):
-            lora_A = module.lora_A.weight
-            lora_B = module.lora_B.weight
-            merged_weight = module.base_layer.weight + module.lora_B(module.lora_A.weight) * module.scaling
+            lora_modules.append((name, module))
 
-            new_layer = nn.Linear(
-                in_features=module.base_layer.weight.shape[1],
-                out_features=module.base_layer.weight.shape[0],
-                bias=module.base_layer.bias is not None,
-            )
-            new_layer.weight = merged_weight
-            if module.base_layer.bias is not None:
-                new_layer.bias = module.base_layer.bias
+    for name, module in lora_modules:
+        lora_A = module.lora_A.weight
+        lora_B = module.lora_B.weight
+        merged_weight = module.base_layer.weight + module.lora_B(module.lora_A.weight) * module.scaling
 
-            parent_name = ".".join(name.split(".")[:-1])
-            child_name = name.split(".")[-1]
-
-            if parent_name:
-                parent = model
-                for p in parent_name.split("."):
-                    parent = getattr(parent, p)
-                setattr(parent, child_name, new_layer)
-            else:
-                setattr(model, child_name, new_layer)
+        # Unfreeze base layer and update weights
+        for p in module.base_layer.parameters():
+            p.trainable = True
+        module.base_layer.weight = merged_weight
+        if module.base_layer.bias is not None:
+            module.base_layer.bias = module.base_layer.bias
 
     return model

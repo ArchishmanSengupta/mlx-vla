@@ -20,6 +20,7 @@ from mlx_vla.data.normalizer import ActionNormalizer
 from mlx_vla.models import VLA
 from mlx_vla.models.vision import VisionEncoder, CLIPVisionEncoder, DINOv2Encoder, SigLIPEncoder, SAMVisionEncoder
 from mlx_vla.core import VLATrainingArguments
+from mlx_vla.train_vla import train_vla
 
 __version__ = "0.1.0"
 
@@ -49,4 +50,5 @@ __all__ = [
     "SigLIPEncoder",
     "SAMVisionEncoder",
     "VLATrainingArguments",
+    "train_vla",
 ]

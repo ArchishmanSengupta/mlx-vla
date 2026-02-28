@@ -134,24 +134,27 @@ class VLATrainer:
 
     def _train_step(self, batch: Dict):
         def loss_fn(model, batch):
-            return self._compute_loss(batch)
+            return self._compute_loss(model, batch)
 
         loss_and_grad_fn = nn.value_and_grad(self.model, loss_fn)
         loss, grads = loss_and_grad_fn(self.model, batch)
 
         if self.gradient_accumulation_steps > 1:
+            # Accumulate gradients instead of loss values
             if self.accumulated_grads is None:
-                self.accumulated_grads = loss
-                self.accumulation_count = 1
+                self.accumulated_grads = grads
             else:
-                self.accumulated_grads = self.accumulated_grads + loss
-                self.accumulation_count += 1
+                for key in grads:
+                    self.accumulated_grads[key] = self.accumulated_grads[key] + grads[key]
+                self.accumulation_count = getattr(self, 'accumulation_count', 0) + 1
 
             if (self.global_step + 1) % self.gradient_accumulation_steps == 0:
-                loss = self.accumulated_grads / self.accumulation_count
+                # Apply accumulated gradients
+                grads = {k: v / self.gradient_accumulation_steps for k, v in self.accumulated_grads.items()}
                 self.accumulated_grads = None
                 self.accumulation_count = 0
             else:
+                # Skip optimizer update, continue accumulating
                 return loss
 
         if self.args.max_grad_norm > 0:
@@ -168,7 +171,7 @@ class VLATrainer:
 
         return loss
 
-    def _compute_loss(self, batch: Dict) -> mx.array:
+    def _compute_loss(self, model: nn.Module, batch: Dict) -> mx.array:
         pixel_values = batch.get("pixel_values")
         input_ids = batch.get("input_ids")
         attention_mask = batch.get("attention_mask")
@@ -177,14 +180,14 @@ class VLATrainer:
         if pixel_values is None or len(pixel_values) == 0:
             return mx.array(0.0)
 
-        outputs = self.model(
+        outputs = model(
             pixel_values=pixel_values,
             input_ids=input_ids,
             attention_mask=attention_mask,
         )
 
-        if self.model.action_type == "discrete":
-            action_tokens = self.model.action_head.action_to_tokens(actions)
+        if model.action_type == "discrete":
+            action_tokens = model.action_head.action_to_tokens(actions)
             logits = outputs["logits"]
             B, L, A, C = logits.shape
             logits_flat = logits.reshape(B, L, A * C)
@@ -193,7 +196,7 @@ class VLATrainer:
                 logits_flat[:, -1, :],
                 target,
             )
-        elif self.model.action_type == "diffusion":
+        elif model.action_type == "diffusion":
 
             predicted_actions = outputs["action"]
 

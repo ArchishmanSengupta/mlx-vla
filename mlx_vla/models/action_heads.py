@@ -88,19 +88,30 @@ class DiffusionActionHead(nn.Module):
         num_steps: int = 10,
         sigma_min: float = 0.002,
     ) -> mx.array:
+        """Denoise actions using DDPM-style sampling.
+
+        This implements the reverse diffusion process to generate actions.
+        """
+        # Start from random noise
         actions = mx.random.normal((hidden_states.shape[0], self.action_horizon, self.action_dim))
         sigma_max = 1.0
 
+        # Create timestep schedule
         step_schedule = mx.linspace(sigma_max, sigma_min, num_steps)
 
         for i, sigma in enumerate(step_schedule):
             t = mx.ones((hidden_states.shape[0],)) * sigma
+
+            # Predict noise
             noise_pred = self.forward(hidden_states, actions, t)
 
+            # Update actions using Euler integration
             if i < len(step_schedule) - 1:
                 next_sigma = step_schedule[i + 1]
+                # Euler step: x_{t-1} = x_t + (sigma_{t-1} - sigma_t) * noise_pred
                 actions = actions + (next_sigma - sigma) * noise_pred
             else:
+                # On final step, the noise prediction IS the denoised action
                 actions = noise_pred
 
         return actions

@@ -14,6 +14,7 @@ class VLAPipeline:
         model: Union[str, VLAForAction],
         tokenizer: Optional[Any] = None,
         device: str = "gpu",
+        unnorm_key: str = "bridge_orig",
     ):
         if isinstance(model, str):
             self.model = VLAForAction.load(model)
@@ -22,17 +23,27 @@ class VLAPipeline:
 
         self.tokenizer = tokenizer
         self.device = device
-        self.normalizer = ActionNormalizer.from_model(
-            self.model.vision_backbone or "bridge"
-        )
+        # Use provided unnorm_key, or derive from model if available
+        # The vision_backbone is not the right key - use dataset/robot config
+        self.unnorm_key = unnorm_key
+        self.normalizer = ActionNormalizer(unnorm_key)
 
     def predict(
         self,
         image: Union[str, Image.Image, np.ndarray],
         language: str,
-        unnorm_key: str = "bridge_orig",
         temperature: float = 1.0,
     ) -> np.ndarray:
+        """Predict robot action from image and language instruction.
+
+        Args:
+            image: Input image (file path, PIL Image, or numpy array)
+            language: Language instruction (e.g., "pick up the cup")
+            temperature: Sampling temperature for action prediction
+
+        Returns:
+            Unnormalized action array
+        """
         pixel_values = self._preprocess_image(image)
 
         if self.tokenizer:

@@ -2,6 +2,7 @@ import mlx.core as mx
 import mlx.nn as nn
 from typing import Optional
 import numpy as np
+import warnings
 
 class VisionEncoder(nn.Module):
     def __init__(
@@ -15,6 +16,7 @@ class VisionEncoder(nn.Module):
         self.backbone = backbone
         self.image_size = image_size
         self.hidden_dim = hidden_dim
+        self.pretrained = pretrained
 
         if backbone == "clip":
             self.encoder = CLIPVisionEncoder(hidden_dim, pretrained, image_size)
@@ -26,6 +28,14 @@ class VisionEncoder(nn.Module):
             self.encoder = SAMVisionEncoder(hidden_dim, pretrained, image_size)
         else:
             raise ValueError(f"Unknown backbone: {backbone}")
+
+        if pretrained:
+            warnings.warn(
+                f"VisionEncoder: pretrained={pretrained} is set, but actual pretrained "
+                f"weights are not loaded. The model is initialized randomly. "
+                f"To load pretrained weights, use mlx_vla.models.load_pretrained_vision_encoder().",
+                UserWarning,
+            )
 
     def __call__(self, images: mx.array) -> mx.array:
         return self.encoder(images)
