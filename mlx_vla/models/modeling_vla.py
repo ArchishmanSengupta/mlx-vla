@@ -101,6 +101,13 @@ class VLAForAction(nn.Module):
         if self.action_type == "diffusion":
             actions = self.action_head.forward(fused_embeds)
             return {"action": actions, "hidden_states": fused_embeds}
+        elif self.action_type == "continuous":
+            # For continuous actions, also return as "action" for predict_action
+            action_logits = self.action_head.forward(fused_embeds)
+            # Squeeze action_horizon dimension if it's 1
+            if action_logits.shape[1] == 1:
+                action_logits = action_logits.squeeze(1)
+            return {"action": action_logits, "logits": action_logits, "hidden_states": fused_embeds}
         else:
             action_logits = self.action_head.forward(fused_embeds)
             return {"logits": action_logits, "hidden_states": fused_embeds}
@@ -118,12 +125,13 @@ class VLAForAction(nn.Module):
             probs = mx.softmax(logits[:, -1, :, :] / temperature, axis=-1)
             bins = mx.argmax(probs, axis=-1)
             actions = self.action_head.tokens_to_action(bins)
+            return actions.squeeze(1)
         elif self.action_type == "diffusion":
             actions = self.action_head.denoise(outputs["hidden_states"])
+            return actions
         else:
-            actions = outputs["action"]
-
-        return actions.squeeze(1)
+            # continuous - action is already squeezed in __call__
+            return outputs["action"]
 
     @classmethod
     def from_pretrained(

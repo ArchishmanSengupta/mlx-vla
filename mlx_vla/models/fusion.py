@@ -126,8 +126,9 @@ class QKVFusion(nn.Module):
         k = self.k_proj(language)
         v = self.v_proj(language)
 
-        # Reshape for attention: (batch, seq, dim) -> (batch, seq, heads, head_dim)
-        scores = mx.matmul(q, k.transpose(0, 2)) / (q.shape[-1] ** 0.5)
+        # Simple attention: (batch, seq, dim) x (batch, dim, seq) -> (batch, seq, seq)
+        k_t = mx.transpose(k, (0, 2, 1))
+        scores = mx.matmul(q, k_t) / (q.shape[-1] ** 0.5)
         attn = mx.softmax(scores, axis=-1)
         out = mx.matmul(attn, v)
 

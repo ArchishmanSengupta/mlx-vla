@@ -118,15 +118,22 @@ def merge_lora(model: nn.Module) -> nn.Module:
             lora_modules.append((name, module))
 
     for name, module in lora_modules:
-        lora_A = module.lora_A.weight
-        lora_B = module.lora_B.weight
-        merged_weight = module.base_layer.weight + module.lora_B(module.lora_A.weight) * module.scaling
+        if module.lora_A is None or module.lora_B is None:
+            continue
+        # Compute merged weights: W + B @ A * scaling
+        # lora_A: (in_dim, rank), lora_B: (out_dim, rank)
+        # lora_B.weight: (out_dim, rank), lora_A.weight: (in_dim, rank)
+        # B @ A: (out_dim, rank) @ (rank, in_dim) = (out_dim, in_dim)
+        lora_A_weight = module.lora_A.weight  # (in_dim, rank)
+        lora_B_weight = module.lora_B.weight  # (out_dim, rank)
+        # Need to transpose A for proper matrix multiplication
+        lora_contribution = mx.matmul(mx.transpose(lora_A_weight), mx.transpose(lora_B_weight)) * module.scaling
+        merged_weight = module.base_layer.weight + lora_contribution
 
-        # Unfreeze base layer and update weights
-        for p in module.base_layer.parameters():
-            p.trainable = True
+        # Update base layer weights
         module.base_layer.weight = merged_weight
-        if module.base_layer.bias is not None:
-            module.base_layer.bias = module.base_layer.bias
+        # Remove LoRA layers
+        module.lora_A = None
+        module.lora_B = None
 
     return model
