@@ -45,6 +45,11 @@ class CLIPVisionEncoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
 
+        # Calculate num_heads to ensure hidden_dim is divisible
+        num_heads = 12
+        while hidden_dim % num_heads != 0:
+            num_heads -= 1
+
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
@@ -58,7 +63,7 @@ class CLIPVisionEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             num_layers=12,
             dims=hidden_dim,
-            num_heads=12,
+            num_heads=num_heads,
             mlp_dims=hidden_dim * 4,
         )
         self.norm = nn.LayerNorm(hidden_dim)
@@ -90,6 +95,11 @@ class DINOv2Encoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
 
+        # Calculate num_heads to ensure hidden_dim is divisible
+        num_heads = 16
+        while hidden_dim % num_heads != 0:
+            num_heads -= 1
+
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
@@ -103,7 +113,7 @@ class DINOv2Encoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             num_layers=24,
             dims=hidden_dim,
-            num_heads=16,
+            num_heads=num_heads,
             mlp_dims=hidden_dim * 4,
         )
         self.norm = nn.LayerNorm(hidden_dim)
@@ -135,6 +145,11 @@ class SigLIPEncoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
 
+        # Calculate num_heads to ensure hidden_dim is divisible
+        num_heads = 16
+        while hidden_dim % num_heads != 0:
+            num_heads -= 1
+
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
@@ -148,7 +163,7 @@ class SigLIPEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             num_layers=24,
             dims=hidden_dim,
-            num_heads=16,
+            num_heads=num_heads,
             mlp_dims=hidden_dim * 4,
         )
         self.norm = nn.LayerNorm(hidden_dim)
@@ -180,6 +195,11 @@ class SAMVisionEncoder(nn.Module):
         super().__init__()
         self.hidden_dim = hidden_dim
 
+        # Calculate num_heads to ensure hidden_dim is divisible
+        num_heads = 12
+        while hidden_dim % num_heads != 0:
+            num_heads -= 1
+
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
@@ -193,7 +213,7 @@ class SAMVisionEncoder(nn.Module):
         self.transformer = nn.TransformerEncoder(
             num_layers=12,
             dims=hidden_dim,
-            num_heads=12,
+            num_heads=num_heads,
             mlp_dims=hidden_dim * 4,
         )
         self.norm = nn.LayerNorm(hidden_dim)
