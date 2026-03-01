@@ -168,11 +168,15 @@ class EpisodeDataset(VLADataset):
 
             steps = []
             for step in episode_data.get("steps", []):
-                img_path = data_path / step.get("image", "")
-                if img_path.exists():
-                    image = np.array(Image.open(img_path).resize((self.image_size, self.image_size)))
-                else:
+                img_path_str = step.get("image")
+                if img_path_str is None or img_path_str == "":
                     image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
+                else:
+                    img_path = data_path / img_path_str
+                    if img_path.exists():
+                        image = np.array(Image.open(img_path).resize((self.image_size, self.image_size)))
+                    else:
+                        image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
 
                 steps.append({
                     "image": image,
