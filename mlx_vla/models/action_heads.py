@@ -171,18 +171,17 @@ class ActionChunkingHead(nn.Module):
         self.chunk_size = chunk_size
 
         self.encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                d_model=hidden_dim,
-                nhead=8,
-                dim_feedforward=hidden_dim * 4,
-                batch_first=True,
-            ),
             num_layers=num_layers,
+            dims=hidden_dim,
+            num_heads=8,
+            mlp_dims=hidden_dim * 4,
+            dropout=0.0,
         )
 
         self.action_predictor = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, hidden_states: mx.array) -> mx.array:
-        encoded = self.encoder(hidden_states)
+        # MLX TransformerEncoder requires mask argument
+        encoded = self.encoder(hidden_states, mask=None)
         actions = self.action_predictor(encoded)
         return actions[:, :self.chunk_size, :]
