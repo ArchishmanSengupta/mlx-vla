@@ -52,47 +52,58 @@ class ActionNormalizer:
         self.action_max = max_vals
 
     def normalize(self, actions: np.ndarray) -> np.ndarray:
-        actions = np.array(actions, dtype=np.float32)
+        original_shape = actions.shape
+        actions = np.array(actions, dtype=np.float32).flatten()
 
         if actions.ndim == 0:
             actions = actions.reshape(1)
 
-        if len(actions) != self.action_dim:
+        action_len = len(actions)
 
-            if len(actions) < self.action_dim:
+        # Extend min/max to match the actual action length
+        if action_len > len(self.action_min):
+            # Extend min/max arrays to match input length
+            min_vals = np.tile(self.action_min, (action_len // len(self.action_min) + 1))[:action_len]
+            max_vals = np.tile(self.action_max, (action_len // len(self.action_max) + 1))[:action_len]
+        else:
+            min_vals = self.action_min[:action_len]
+            max_vals = self.action_max[:action_len]
 
-                padded = np.zeros(self.action_dim)
-                padded[:len(actions)] = actions
-                actions = padded
-            else:
+        range_vals = max_vals - min_vals
+        range_vals = np.where(range_vals == 0, 1, range_vals)
 
-                actions = actions[:self.action_dim]
+        normalized = (actions - min_vals) / range_vals
+        result = np.clip(normalized, -1, 1)
 
-        range_vals = self.action_max - self.action_min
-        range_vals = np.where(range_vals == 0, 1, range_vals)  
-
-        normalized = (actions - self.action_min) / range_vals
-        return np.clip(normalized, -1, 1)
+        # Reshape back to original shape
+        return result.reshape(original_shape)
 
     def unnormalize(self, normalized: np.ndarray) -> np.ndarray:
-        normalized = np.array(normalized, dtype=np.float32)
+        original_shape = normalized.shape
+        normalized = np.array(normalized, dtype=np.float32).flatten()
 
         if normalized.ndim == 0:
             normalized = normalized.reshape(1)
 
-        if len(normalized) != self.action_dim:
-            if len(normalized) < self.action_dim:
-                padded = np.zeros(self.action_dim)
-                padded[:len(normalized)] = normalized
-                normalized = padded
-            else:
-                normalized = normalized[:self.action_dim]
+        action_len = len(normalized)
 
-        range_vals = self.action_max - self.action_min
+        # Extend min/max to match the actual action length
+        if action_len > len(self.action_min):
+            # Extend min/max arrays to match input length
+            min_vals = np.tile(self.action_min, (action_len // len(self.action_min) + 1))[:action_len]
+            max_vals = np.tile(self.action_max, (action_len // len(self.action_max) + 1))[:action_len]
+        else:
+            min_vals = self.action_min[:action_len]
+            max_vals = self.action_max[:action_len]
+
+        range_vals = max_vals - min_vals
         range_vals = np.where(range_vals == 0, 1, range_vals)
 
-        unnormalized = normalized * range_vals + self.action_min
-        return np.clip(unnormalized, self.action_min, self.action_max)
+        unnormalized = normalized * range_vals + min_vals
+        result = np.clip(unnormalized, min_vals, max_vals)
+
+        # Reshape back to original shape
+        return result.reshape(original_shape)
 
     @staticmethod
     def from_model(model_name: str, action_dim: int = 7) -> "ActionNormalizer":
