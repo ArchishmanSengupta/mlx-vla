@@ -18,6 +18,9 @@ class DiscreteActionHead(nn.Module):
         self.action_head = nn.Linear(hidden_dim, num_bins * action_dim)
         self.vocab_size = vocab_size
 
+    def __call__(self, hidden_states: mx.array) -> mx.array:
+        return self.forward(hidden_states)
+
     def forward(self, hidden_states: mx.array) -> mx.array:
         logits = self.action_head(hidden_states)
         return logits.reshape(hidden_states.shape[0], hidden_states.shape[1], self.action_dim, self.num_bins)
@@ -56,6 +59,14 @@ class DiffusionActionHead(nn.Module):
             nn.SiLU(),
             nn.Linear(hidden_dim * 2, action_dim * action_horizon),
         )
+
+    def __call__(
+        self,
+        hidden_states: mx.array,
+        noisy_actions: Optional[mx.array] = None,
+        timesteps: Optional[mx.array] = None,
+    ) -> mx.array:
+        return self.forward(hidden_states, noisy_actions, timesteps)
 
     def forward(
         self,
@@ -139,6 +150,9 @@ class ContinuousActionHead(nn.Module):
             in_dim = out_dim
 
         self.net = nn.Sequential(*layers)
+
+    def __call__(self, hidden_states: mx.array) -> mx.array:
+        return self.forward(hidden_states)
 
     def forward(self, hidden_states: mx.array) -> mx.array:
         pooled = hidden_states[:, 0, :]
