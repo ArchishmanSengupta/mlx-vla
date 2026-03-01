@@ -53,6 +53,10 @@ class VLAMixer(nn.Module):
                 vision_proj = layer(vision_proj, language_proj)
             return vision_proj
         elif self.fusion_type == "concat":
+            # Handle different sequence lengths by using the minimum
+            min_seq_len = min(vision_proj.shape[1], language_proj.shape[1])
+            vision_proj = vision_proj[:, :min_seq_len, :]
+            language_proj = language_proj[:, :min_seq_len, :]
             fused = mx.concatenate([vision_proj, language_proj], axis=-1)
             return self.concat_fusion(fused)
         elif self.fusion_type == "gated":
@@ -86,12 +90,17 @@ class CrossAttentionFusion(nn.Module):
 class GatedFusion(nn.Module):
     def __init__(self, vision_dim: int, language_dim: int, hidden_dim: int):
         super().__init__()
-        self.vision_gate = nn.Linear(vision_dim, hidden_dim)
-        self.language_gate = nn.Linear(language_dim, hidden_dim)
+        self.vision_gate = nn.Linear(language_dim, hidden_dim)
+        self.language_gate = nn.Linear(vision_dim, hidden_dim)
         self.vision_proj = nn.Linear(vision_dim, hidden_dim)
         self.language_proj = nn.Linear(language_dim, hidden_dim)
 
     def __call__(self, vision: mx.array, language: mx.array) -> mx.array:
+        # Handle different sequence lengths
+        min_seq_len = min(vision.shape[1], language.shape[1])
+        vision = vision[:, :min_seq_len, :]
+        language = language[:, :min_seq_len, :]
+
         gate_v = mx.sigmoid(self.vision_gate(language))
         gate_l = mx.sigmoid(self.language_gate(vision))
         vision_proj = self.vision_proj(vision)
@@ -108,11 +117,17 @@ class QKVFusion(nn.Module):
         self.norm = nn.LayerNorm(hidden_dim)
 
     def __call__(self, vision: mx.array, language: mx.array) -> mx.array:
+        # Handle different sequence lengths
+        min_seq_len = min(vision.shape[1], language.shape[1])
+        vision = vision[:, :min_seq_len, :]
+        language = language[:, :min_seq_len, :]
+
         q = self.q_proj(vision)
         k = self.k_proj(language)
         v = self.v_proj(language)
 
-        scores = mx.matmul(q, k.transpose(0, 1)) / (q.shape[-1] ** 0.5)
+        # Reshape for attention: (batch, seq, dim) -> (batch, seq, heads, head_dim)
+        scores = mx.matmul(q, k.transpose(0, 2)) / (q.shape[-1] ** 0.5)
         attn = mx.softmax(scores, axis=-1)
         out = mx.matmul(attn, v)
 
