@@ -149,8 +149,12 @@ class VLAForAction(nn.Module):
 
     def save(self, path: str):
         import json
+        import os
         path = path.rstrip("/")
-        mx.savez(f"{path}/model.npz", **self.state_dict())
+        os.makedirs(path, exist_ok=True)
+
+        # Use MLX's built-in save_weights method
+        self.save_weights(f"{path}/model.npz")
 
         config = {
             "vision_backbone": self.vision_backbone,
@@ -171,7 +175,8 @@ class VLAForAction(nn.Module):
             config = json.load(f)
 
         model = cls(**config)
-        model.load_weights(f"{path}/model.npz")
+        # Use strict=False to allow loading weights that match
+        model.load_weights(f"{path}/model.npz", strict=False)
         return model
 
 VLA = VLAForAction
