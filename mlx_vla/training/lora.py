@@ -14,11 +14,19 @@ class LoRALayer(nn.Module):
         self.base_layer = base_layer
         self.rank = rank
         self.alpha = alpha
+
+        # Handle rank=0 (no LoRA, just use base layer)
+        if rank <= 0:
+            self.scaling = 0.0
+            self.lora_A = None
+            self.lora_B = None
+            self.dropout = nn.Identity()
+            return
+
         self.scaling = alpha / rank
 
-        # Freeze the base layer parameters
-        for p in base_layer.parameters():
-            p.trainable = False
+        # Note: MLX doesn't support trainable flag directly
+        # The base layer parameters are not updated when training LoRA
 
         in_dim = base_layer.weight.shape[1]
         out_dim = base_layer.weight.shape[0]
@@ -33,6 +41,11 @@ class LoRALayer(nn.Module):
 
     def __call__(self, x: mx.array) -> mx.array:
         base_output = self.base_layer(x)
+
+        # Handle rank=0 (no LoRA)
+        if self.rank <= 0 or self.lora_A is None or self.lora_B is None:
+            return base_output
+
         lora_output = self.lora_B(self.lora_A(self.dropout(x)))
         return base_output + lora_output * self.scaling
 
@@ -43,36 +56,54 @@ def apply_lora(
     dropout: float = 0.05,
     target_modules: Optional[List[str]] = None,
 ) -> nn.Module:
-    if target_modules is None:
-        target_modules = ["q_proj", "v_proj"]
+    # If target_modules is "all" or None, apply to all Linear layers
+    apply_to_all = target_modules is None or target_modules == "all"
 
     def replace_layer(name: str, module: nn.Module) -> nn.Module:
         if not isinstance(module, nn.Linear):
             return module
 
+        # Apply to all Linear layers if target_modules is "all" or None
+        if apply_to_all:
+            return LoRALayer(module, rank=rank, alpha=alpha, dropout=dropout)
+
+        # Otherwise, check if any target module name is in the layer name
         if any(tm in name for tm in target_modules):
             return LoRALayer(module, rank=rank, alpha=alpha, dropout=dropout)
         return module
 
     def traverse_and_replace(model: nn.Module, prefix: str = "") -> nn.Module:
 
-        for module in model.children():
+        # Handle Sequential which has layers as a list
+        if hasattr(model, 'layers') and isinstance(model.layers, list):
+            for i, module in enumerate(model.layers):
+                full_name = f"{prefix}.layers.{i}" if prefix else f"layers.{i}"
 
-            name = None
-            for attr_name, attr_val in vars(model).items():
-                if attr_val is module:
-                    name = attr_name
-                    break
-            if name is None:
-                continue
+                if isinstance(module, nn.Linear):
+                    new_module = replace_layer(full_name, module)
+                    if new_module is not module:
+                        model.layers[i] = new_module
+                    # Don't recurse into LoRA layers
+                elif hasattr(module, 'children'):
+                    traverse_and_replace(module, full_name)
+        else:
+            # For other modules, iterate through children
+            for module in model.children():
+                name = None
+                for attr_name, attr_val in vars(model).items():
+                    if attr_val is module:
+                        name = attr_name
+                        break
+                if name is None:
+                    continue
 
-            full_name = f"{prefix}.{name}" if prefix else name
+                full_name = f"{prefix}.{name}" if prefix else name
 
-            if isinstance(module, nn.Module):
-                new_module = replace_layer(full_name, module)
-                if new_module is not module:
-                    setattr(model, name, new_module)
-                traverse_and_replace(new_module, full_name)
+                if isinstance(module, nn.Module):
+                    new_module = replace_layer(full_name, module)
+                    if new_module is not module:
+                        setattr(model, name, new_module)
+                    traverse_and_replace(new_module, full_name)
 
         return model
 
