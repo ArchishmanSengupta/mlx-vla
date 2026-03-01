@@ -1,4 +1,5 @@
 import io
+import os
 import numpy as np
 import mlx.core as mx
 from typing import Dict, List, Any, Optional
@@ -37,8 +38,13 @@ class VLAModuleDataCollator:
 
             for step in steps:
                 pixel_values.append(self._preprocess_image(step.get("image")))
-                actions.append(self._normalize_action(step.get("action", np.zeros(self.action_dim))))
-                raw_actions.append(step.get("action", np.zeros(self.action_dim)))
+
+                # Handle action - use zeros if None
+                action = step.get("action")
+                if action is None:
+                    action = np.zeros(self.action_dim)
+                actions.append(self._normalize_action(action))
+                raw_actions.append(action)
 
                 if self.tokenizer and step.get("language"):
                     encoded = self.tokenizer(
@@ -67,7 +73,16 @@ class VLAModuleDataCollator:
             return np.zeros((3, self.image_size, self.image_size), dtype=np.float32)
 
         if isinstance(image, str):
-            image = Image.open(image)
+            # Handle string paths - try to open, fall back to default if not found
+            try:
+                if os.path.exists(image):
+                    image = Image.open(image)
+                else:
+                    # File doesn't exist, return default image
+                    return np.zeros((3, self.image_size, self.image_size), dtype=np.float32)
+            except Exception:
+                # Any error loading image, return default
+                return np.zeros((3, self.image_size, self.image_size), dtype=np.float32)
 
         if isinstance(image, Image.Image):
             image = image.resize((self.image_size, self.image_size))
