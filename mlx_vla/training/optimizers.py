@@ -1,3 +1,4 @@
+import math
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
@@ -10,31 +11,14 @@ def create_optimizer(
     betas: tuple = (0.9, 0.999),
     eps: float = 1e-8,
     optimizer_type: str = "adamw",
+    momentum: float = 0.9,
 ) -> optim.Optimizer:
-    no_decay = ["bias", "LayerNorm.weight", "layer_norm.weight"]
-
-    all_params = model.parameters()
-    trainable_params = [(name, p) for name, p in all_params.items() if hasattr(p, 'trainable') and p.trainable]
-
-    param_groups = [
-        {
-            "params": [p for n, p in trainable_params if not any(nd in n for nd in no_decay)],
-            "weight_decay": weight_decay,
-        },
-        {
-            "params": [p for n, p in trainable_params if any(nd in n for nd in no_decay)],
-            "weight_decay": 0.0,
-        },
-    ]
-
-    param_groups = [pg for pg in param_groups if len(pg["params"]) > 0]
-
     if optimizer_type == "adamw":
         return optim.AdamW(learning_rate=learning_rate, betas=betas, eps=eps)
     elif optimizer_type == "adam":
         return optim.Adam(learning_rate=learning_rate, betas=betas, eps=eps)
     elif optimizer_type == "sgd":
-        return optim.SGD(learning_rate=learning_rate, momentum=0.9)
+        return optim.SGD(learning_rate=learning_rate, momentum=momentum)
     elif optimizer_type == "rmsprop":
         return optim.RMSprop(learning_rate=learning_rate)
     elif optimizer_type == "lion":
@@ -55,7 +39,7 @@ def create_scheduler(
             if step < warmup_steps:
                 return step / max(1, warmup_steps)
             progress = (step - warmup_steps) / max(1, num_training_steps - warmup_steps)
-            return 0.5 * (1.0 + mx.cos(mx.pi * progress))
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
         return cosine_schedule
     elif scheduler_type == "linear":
         def linear_schedule(step: int):
