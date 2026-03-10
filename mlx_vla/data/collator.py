@@ -55,8 +55,15 @@ class VLAModuleDataCollator:
                 action = step.get("action")
                 if action is None:
                     action = np.zeros(self.action_dim)
-                actions.append(self._normalize_action(action))
-                raw_actions.append(action)
+                normalized = self._normalize_action(action)
+                actions.append(normalized)
+                try:
+                    raw = np.array(action, dtype=np.float32)
+                    if raw.ndim == 0 or raw.size == 0:
+                        raw = np.zeros(self.action_dim, dtype=np.float32)
+                except (ValueError, TypeError):
+                    raw = np.zeros(self.action_dim, dtype=np.float32)
+                raw_actions.append(raw)
 
                 if self.tokenizer and step.get("language"):
                     encoded = self.tokenizer(
@@ -97,12 +104,13 @@ class VLAModuleDataCollator:
                 return np.zeros((3, self.image_size, self.image_size), dtype=np.float32)
 
         if isinstance(image, Image.Image):
+            image = image.convert("RGB")
             image = image.resize((self.image_size, self.image_size))
             image = np.array(image)
 
         if isinstance(image, bytes):
-            image = np.frombuffer(image, dtype=np.uint8)
             image = Image.open(io.BytesIO(image))
+            image = image.convert("RGB")
             image = image.resize((self.image_size, self.image_size))
             image = np.array(image)
 
@@ -110,16 +118,17 @@ class VLAModuleDataCollator:
             image = image.astype(np.float32) / 255.0
 
         if len(image.shape) == 2:
-
             image = np.stack([image] * 3, axis=-1)
         elif len(image.shape) == 3:
             if image.shape[2] == 4:
-
                 image = image[:, :, :3]
             elif image.shape[2] == 1:
+                image = np.concatenate([image] * 3, axis=-1)
 
-                image = np.squeeze(image, axis=-1)
-                image = np.stack([image] * 3, axis=-1)
+        if image.shape[0] != self.image_size or image.shape[1] != self.image_size:
+            pil_img = Image.fromarray((image * 255).clip(0, 255).astype(np.uint8))
+            pil_img = pil_img.resize((self.image_size, self.image_size))
+            image = np.array(pil_img).astype(np.float32) / 255.0
 
         if self.normalize_images:
             if image.shape[-1] == 3:
@@ -136,10 +145,10 @@ class VLAModuleDataCollator:
 
         try:
             action = np.array(action, dtype=np.float32)
-        except:
+        except (ValueError, TypeError):
             return np.zeros(self.action_dim, dtype=np.float32)
 
-        if len(action) == 0:
+        if action.ndim == 0 or action.size == 0:
             return np.zeros(self.action_dim, dtype=np.float32)
 
         action = np.pad(action, (0, max(0, self.action_dim - len(action))), mode="constant")
