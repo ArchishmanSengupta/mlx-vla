@@ -19,10 +19,10 @@ lora:
   alpha: 16
   dropout: 0.05
   target_modules:
-    - q_proj
-    - k_proj
-    - v_proj
-    - o_proj
+    - query_proj
+    - key_proj
+    - value_proj
+    - out_proj
 
 data:
   dataset_name: bridge_v2
