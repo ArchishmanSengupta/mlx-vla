@@ -18,8 +18,8 @@ lora:
   alpha: 32
   dropout: 0.1
   target_modules:
-    - q_proj
-    - v_proj
+    - query_proj
+    - value_proj
 
 data:
   dataset_name: oxe/bridge_v2
