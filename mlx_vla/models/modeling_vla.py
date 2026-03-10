@@ -11,6 +11,7 @@ from mlx_vla.models.action_heads import (
     ContinuousActionHead,
     ActionChunkingHead,
 )
+from mlx_vla.models._constants import DEFAULT_VOCAB_SIZE
 
 class VLAForAction(nn.Module):
     def __init__(
@@ -43,7 +44,7 @@ class VLAForAction(nn.Module):
             self.language_model = language_model
             self.language_hidden_dim = language_hidden_dim
         else:
-            self.language_model = nn.Embedding(32000, language_hidden_dim)
+            self.language_model = nn.Embedding(DEFAULT_VOCAB_SIZE, language_hidden_dim)
             self.language_hidden_dim = language_hidden_dim
 
         hidden_dim = max(vision_hidden_dim, language_hidden_dim)
@@ -171,11 +172,16 @@ class VLAForAction(nn.Module):
 
         config = {
             "vision_backbone": self.vision_backbone,
+            "vision_hidden_dim": self.vision_encoder.hidden_dim,
+            "language_hidden_dim": self.language_hidden_dim,
+            "fusion_type": self.fusion.fusion_type,
             "action_type": self.action_type,
             "action_dim": self.action_dim,
             "action_horizon": self.action_horizon,
             "image_size": self.image_size,
         }
+        if self.action_type == "discrete":
+            config["num_action_bins"] = self.action_head.num_bins
         with open(f"{path}/config.json", "w") as f:
             json.dump(config, f)
 
