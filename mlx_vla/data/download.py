@@ -8,6 +8,9 @@ from dataclasses import dataclass
 import warnings
 
 
+DEFAULT_CACHE_DIR = os.path.expanduser("~/.mlx_vla/datasets")
+
+
 @dataclass
 class DatasetInfo:
     """Information about a downloadable dataset."""
@@ -108,7 +111,7 @@ def download_rlds_dataset(
 
     # Determine save directory
     if data_dir is None:
-        data_dir = os.path.expanduser("~/.mlx_vla/datasets")
+        data_dir = DEFAULT_CACHE_DIR
 
     save_dir = Path(data_dir) / dataset_name.replace("/", "_")
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -208,7 +211,7 @@ def download_huggingface_dataset(
         )
 
     if data_dir is None:
-        data_dir = os.path.expanduser("~/.mlx_vla/datasets")
+        data_dir = DEFAULT_CACHE_DIR
 
     save_dir = Path(data_dir) / dataset_name.replace("/", "_")
 
@@ -293,7 +296,7 @@ def list_downloaded_datasets(data_dir: Optional[str] = None) -> List[str]:
         List of downloaded dataset names
     """
     if data_dir is None:
-        data_dir = os.path.expanduser("~/.mlx_vla/datasets")
+        data_dir = DEFAULT_CACHE_DIR
 
     data_path = Path(data_dir)
     if not data_path.exists():
