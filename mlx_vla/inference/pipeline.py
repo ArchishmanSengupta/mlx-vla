@@ -91,11 +91,17 @@ class VLAPipeline:
             yield action
 
     def _preprocess_image(self, image: Union[str, Image.Image, np.ndarray]) -> mx.array:
+        target = self.model.image_size
+
         if isinstance(image, str):
-            image = Image.open(image)
+            try:
+                image = Image.open(image)
+            except (FileNotFoundError, OSError):
+                return mx.zeros((1, 3, target, target))
 
         if isinstance(image, Image.Image):
-            image = image.resize((self.model.image_size, self.model.image_size))
+            image = image.convert("RGB")
+            image = image.resize((target, target))
             image = np.array(image)
 
         if image.dtype != np.float32:
@@ -103,6 +109,15 @@ class VLAPipeline:
 
         if len(image.shape) == 2:
             image = np.stack([image] * 3, axis=-1)
+        elif len(image.shape) == 3 and image.shape[2] == 4:
+            image = image[:, :, :3]
+        elif len(image.shape) == 3 and image.shape[2] == 1:
+            image = np.concatenate([image] * 3, axis=-1)
+
+        if image.shape[0] != target or image.shape[1] != target:
+            pil_img = Image.fromarray((image * 255).clip(0, 255).astype(np.uint8))
+            pil_img = pil_img.resize((target, target))
+            image = np.array(pil_img).astype(np.float32) / 255.0
 
         image = (image - self.image_mean) / self.image_std
         image = np.transpose(image, (2, 0, 1))
