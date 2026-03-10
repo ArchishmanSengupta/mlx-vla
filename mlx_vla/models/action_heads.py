@@ -3,13 +3,15 @@ import mlx.nn as nn
 from typing import Optional
 import numpy as np
 
+from mlx_vla.models._constants import DEFAULT_VOCAB_SIZE
+
 class DiscreteActionHead(nn.Module):
     def __init__(
         self,
         hidden_dim: int,
         action_dim: int = 7,
         num_bins: int = 256,
-        vocab_size: int = 32000,
+        vocab_size: int = DEFAULT_VOCAB_SIZE,
     ):
         super().__init__()
         self.action_dim = action_dim
@@ -40,11 +42,13 @@ class DiffusionActionHead(nn.Module):
         action_dim: int = 7,
         action_horizon: int = 4,
         num_diffusion_steps: int = 100,
+        sigma_max: float = 1.0,
     ):
         super().__init__()
         self.action_dim = action_dim
         self.action_horizon = action_horizon
         self.num_diffusion_steps = num_diffusion_steps
+        self.sigma_max = sigma_max
 
         self.time_mlp = nn.Sequential(
             nn.Linear(1, hidden_dim),
@@ -105,10 +109,8 @@ class DiffusionActionHead(nn.Module):
         """
         # Start from random noise
         actions = mx.random.normal((hidden_states.shape[0], self.action_horizon, self.action_dim))
-        sigma_max = 1.0
 
-        # Create timestep schedule
-        step_schedule = mx.linspace(sigma_max, sigma_min, num_steps)
+        step_schedule = mx.linspace(self.sigma_max, sigma_min, num_steps)
 
         for i, sigma in enumerate(step_schedule):
             t = mx.ones((hidden_states.shape[0],)) * sigma
@@ -165,6 +167,8 @@ class ActionChunkingHead(nn.Module):
         action_dim: int = 7,
         chunk_size: int = 100,
         num_layers: int = 4,
+        num_heads: int = 8,
+        dropout: float = 0.0,
     ):
         super().__init__()
         self.action_dim = action_dim
@@ -173,9 +177,9 @@ class ActionChunkingHead(nn.Module):
         self.encoder = nn.TransformerEncoder(
             num_layers=num_layers,
             dims=hidden_dim,
-            num_heads=8,
+            num_heads=num_heads,
             mlp_dims=hidden_dim * 4,
-            dropout=0.0,
+            dropout=dropout,
         )
 
         self.action_predictor = nn.Linear(hidden_dim, action_dim)
