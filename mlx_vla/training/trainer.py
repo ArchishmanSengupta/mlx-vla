@@ -7,8 +7,10 @@ import numpy as np
 import mlx.core as mx
 import mlx.nn as nn
 import mlx.optimizers as optim
+import mlx.utils
 
 from mlx_vla.core import VLATrainingArguments
+from mlx_vla.utils.config import DEFAULT_CONFIG
 from mlx_vla.data.dataset import VLADataset
 from mlx_vla.data.collator import VLAModuleDataCollator
 from mlx_vla.data.dataloader import VLADataloader
@@ -32,8 +34,8 @@ class VLATrainer:
         self.tokenizer = tokenizer
 
         self.data_collator = data_collator or VLAModuleDataCollator(
-            image_size=224,
-            action_normalization="clip_minus_one_to_one",
+            image_size=DEFAULT_CONFIG["data"]["image_size"],
+            action_normalization=DEFAULT_CONFIG["data"]["action_normalization"],
             tokenizer=tokenizer,
         )
 
@@ -140,32 +142,30 @@ class VLATrainer:
         loss, grads = loss_and_grad_fn(self.model, batch)
 
         if self.gradient_accumulation_steps > 1:
-            # Accumulate gradients instead of loss values
             if self.accumulated_grads is None:
                 self.accumulated_grads = grads
             else:
-                for key in grads:
-                    self.accumulated_grads[key] = self.accumulated_grads[key] + grads[key]
-                self.accumulation_count = getattr(self, 'accumulation_count', 0) + 1
+                self.accumulated_grads = mlx.utils.tree_map(
+                    lambda a, b: a + b, self.accumulated_grads, grads
+                )
 
             if (self.global_step + 1) % self.gradient_accumulation_steps == 0:
-                # Apply accumulated gradients
-                grads = {k: v / self.gradient_accumulation_steps for k, v in self.accumulated_grads.items()}
+                scale = 1.0 / self.gradient_accumulation_steps
+                grads = mlx.utils.tree_map(lambda g: g * scale, self.accumulated_grads)
                 self.accumulated_grads = None
-                self.accumulation_count = 0
             else:
-                # Skip optimizer update, continue accumulating
                 return loss
 
         if self.args.max_grad_norm > 0:
-            grad_norm = optim.clip_grad_norm(
+            grads, grad_norm = optim.clip_grad_norm(
                 grads,
                 self.args.max_grad_norm,
             )
+            mx.eval(grad_norm)
             self.metrics["grad_norm"] = float(grad_norm)
 
         if self.scheduler:
-            self.learning_rate = self.args.learning_rate * self.scheduler(self.global_step)
+            self.learning_rate = float(self.args.learning_rate * self.scheduler(self.global_step))
 
         self.optimizer.update(self.model, grads)
 
@@ -190,21 +190,26 @@ class VLATrainer:
             action_tokens = model.action_head.action_to_tokens(actions)
             logits = outputs["logits"]
             B, L, A, C = logits.shape
-            logits_flat = logits.reshape(B, L, A * C)
-            target = action_tokens.reshape(B)
-            loss = nn.losses.cross_entropy(
-                logits_flat[:, -1, :],
-                target,
-            )
+            last_logits = logits[:, -1, :, :]
+            losses = []
+            for a in range(A):
+                dim_loss = nn.losses.cross_entropy(
+                    last_logits[:, a, :],
+                    action_tokens[:, a],
+                )
+                losses.append(dim_loss)
+            loss = mx.mean(mx.stack(losses))
         elif model.action_type == "diffusion":
-
             predicted_actions = outputs["action"]
-
-            pred_first = predicted_actions[:, 0, :]
-            loss = mx.mean((pred_first - actions) ** 2)
+            if predicted_actions.ndim == 3 and actions.ndim == 2:
+                pred_first = predicted_actions[:, 0, :]
+                loss = mx.mean((pred_first - actions) ** 2)
+            else:
+                loss = mx.mean((predicted_actions - actions) ** 2)
         else:
-
-            pred_actions = outputs["logits"]
+            pred_actions = outputs["action"] if "action" in outputs else outputs["logits"]
+            if pred_actions.ndim == 3 and actions.ndim == 2:
+                pred_actions = pred_actions[:, 0, :]
             loss = mx.mean((pred_actions - actions) ** 2)
 
         return loss
@@ -236,7 +241,7 @@ class VLATrainer:
         eval_losses = []
 
         for batch in eval_dataloader:
-            loss = self._compute_loss(batch)
+            loss = self._compute_loss(self.model, batch)
             eval_losses.append(float(loss))
 
         self.model.train()
