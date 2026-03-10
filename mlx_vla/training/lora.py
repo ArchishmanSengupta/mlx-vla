@@ -56,58 +56,39 @@ def apply_lora(
     dropout: float = 0.05,
     target_modules: Optional[List[str]] = None,
 ) -> nn.Module:
-    # If target_modules is "all" or None, apply to all Linear layers
     apply_to_all = target_modules is None or target_modules == "all"
 
-    def replace_layer(name: str, module: nn.Module) -> nn.Module:
+    replacements = []
+    for name, module in model.named_modules():
         if not isinstance(module, nn.Linear):
-            return module
+            continue
+        if apply_to_all or any(tm in name for tm in target_modules):
+            replacements.append((name, module))
 
-        # Apply to all Linear layers if target_modules is "all" or None
-        if apply_to_all:
-            return LoRALayer(module, rank=rank, alpha=alpha, dropout=dropout)
+    for name, module in replacements:
+        parts = name.split(".")
+        parent = model
+        for part in parts[:-1]:
+            if isinstance(parent, list):
+                parent = parent[int(part)]
+            elif part.isdigit() and hasattr(parent, 'layers') and isinstance(getattr(parent, 'layers'), list):
+                parent = parent.layers[int(part)]
+            elif hasattr(parent, part):
+                parent = getattr(parent, part)
+            else:
+                parent = parent[int(part)] if isinstance(parent, list) else getattr(parent, part)
 
-        # Otherwise, check if any target module name is in the layer name
-        if any(tm in name for tm in target_modules):
-            return LoRALayer(module, rank=rank, alpha=alpha, dropout=dropout)
-        return module
+        final_key = parts[-1]
+        lora_layer = LoRALayer(module, rank=rank, alpha=alpha, dropout=dropout)
 
-    def traverse_and_replace(model: nn.Module, prefix: str = "") -> nn.Module:
-
-        # Handle Sequential which has layers as a list
-        if hasattr(model, 'layers') and isinstance(model.layers, list):
-            for i, module in enumerate(model.layers):
-                full_name = f"{prefix}.layers.{i}" if prefix else f"layers.{i}"
-
-                if isinstance(module, nn.Linear):
-                    new_module = replace_layer(full_name, module)
-                    if new_module is not module:
-                        model.layers[i] = new_module
-                    # Don't recurse into LoRA layers
-                elif hasattr(module, 'children'):
-                    traverse_and_replace(module, full_name)
+        if isinstance(parent, list):
+            parent[int(final_key)] = lora_layer
+        elif final_key.isdigit() and hasattr(parent, 'layers') and isinstance(getattr(parent, 'layers'), list):
+            parent.layers[int(final_key)] = lora_layer
         else:
-            # For other modules, iterate through children
-            for module in model.children():
-                name = None
-                for attr_name, attr_val in vars(model).items():
-                    if attr_val is module:
-                        name = attr_name
-                        break
-                if name is None:
-                    continue
+            setattr(parent, final_key, lora_layer)
 
-                full_name = f"{prefix}.{name}" if prefix else name
-
-                if isinstance(module, nn.Module):
-                    new_module = replace_layer(full_name, module)
-                    if new_module is not module:
-                        setattr(model, name, new_module)
-                    traverse_and_replace(new_module, full_name)
-
-        return model
-
-    return traverse_and_replace(model)
+    return model
 
 def merge_lora(model: nn.Module) -> nn.Module:
     """Merge LoRA weights back into the base layer."""
@@ -120,19 +101,12 @@ def merge_lora(model: nn.Module) -> nn.Module:
     for name, module in lora_modules:
         if module.lora_A is None or module.lora_B is None:
             continue
-        # Compute merged weights: W + B @ A * scaling
-        # lora_A: (in_dim, rank), lora_B: (out_dim, rank)
-        # lora_B.weight: (out_dim, rank), lora_A.weight: (in_dim, rank)
-        # B @ A: (out_dim, rank) @ (rank, in_dim) = (out_dim, in_dim)
-        lora_A_weight = module.lora_A.weight  # (in_dim, rank)
+        lora_A_weight = module.lora_A.weight  # (rank, in_dim)
         lora_B_weight = module.lora_B.weight  # (out_dim, rank)
-        # Need to transpose A for proper matrix multiplication
-        lora_contribution = mx.matmul(mx.transpose(lora_A_weight), mx.transpose(lora_B_weight)) * module.scaling
+        lora_contribution = mx.matmul(lora_B_weight, lora_A_weight) * module.scaling
         merged_weight = module.base_layer.weight + lora_contribution
 
-        # Update base layer weights
         module.base_layer.weight = merged_weight
-        # Remove LoRA layers
         module.lora_A = None
         module.lora_B = None
 
