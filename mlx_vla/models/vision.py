@@ -41,30 +41,29 @@ class VisionEncoder(nn.Module):
         return self.encoder(images)
 
 class CLIPVisionEncoder(nn.Module):
-    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224):
+    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224,
+                 patch_size: int = 14, num_layers: int = 12, num_heads: int = 12,
+                 mlp_ratio: int = 4):
         super().__init__()
         self.hidden_dim = hidden_dim
 
-        # Calculate num_heads to ensure hidden_dim is divisible
-        num_heads = 12
         while hidden_dim % num_heads != 0:
             num_heads -= 1
 
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
-            kernel_size=14,
-            stride=14,
+            kernel_size=patch_size,
+            stride=patch_size,
         )
-        patch_size = 14
         num_patches = (image_size // patch_size) ** 2
         self.position_embedding = nn.Embedding(num_patches + 1, hidden_dim)
         self.cls_token = nn.Embedding(1, hidden_dim)
         self.transformer = nn.TransformerEncoder(
-            num_layers=12,
+            num_layers=num_layers,
             dims=hidden_dim,
             num_heads=num_heads,
-            mlp_dims=hidden_dim * 4,
+            mlp_dims=hidden_dim * mlp_ratio,
         )
         self.norm = nn.LayerNorm(hidden_dim)
 
@@ -91,30 +90,29 @@ class CLIPVisionEncoder(nn.Module):
         return x
 
 class DINOv2Encoder(nn.Module):
-    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224):
+    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224,
+                 patch_size: int = 14, num_layers: int = 24, num_heads: int = 16,
+                 mlp_ratio: int = 4):
         super().__init__()
         self.hidden_dim = hidden_dim
 
-        # Calculate num_heads to ensure hidden_dim is divisible
-        num_heads = 16
         while hidden_dim % num_heads != 0:
             num_heads -= 1
 
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
-            kernel_size=14,
-            stride=14,
+            kernel_size=patch_size,
+            stride=patch_size,
         )
-        patch_size = 14
         num_patches = (image_size // patch_size) ** 2
         self.position_embedding = nn.Embedding(num_patches + 1, hidden_dim)
         self.cls_token = nn.Embedding(1, hidden_dim)
         self.transformer = nn.TransformerEncoder(
-            num_layers=24,
+            num_layers=num_layers,
             dims=hidden_dim,
             num_heads=num_heads,
-            mlp_dims=hidden_dim * 4,
+            mlp_dims=hidden_dim * mlp_ratio,
         )
         self.norm = nn.LayerNorm(hidden_dim)
 
@@ -141,30 +139,29 @@ class DINOv2Encoder(nn.Module):
         return x
 
 class SigLIPEncoder(nn.Module):
-    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224):
+    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224,
+                 patch_size: int = 14, num_layers: int = 24, num_heads: int = 16,
+                 mlp_ratio: int = 4):
         super().__init__()
         self.hidden_dim = hidden_dim
 
-        # Calculate num_heads to ensure hidden_dim is divisible
-        num_heads = 16
         while hidden_dim % num_heads != 0:
             num_heads -= 1
 
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
-            kernel_size=14,
-            stride=14,
+            kernel_size=patch_size,
+            stride=patch_size,
         )
-        patch_size = 14
         num_patches = (image_size // patch_size) ** 2
         self.position_embedding = nn.Embedding(num_patches + 1, hidden_dim)
         self.cls_token = nn.Embedding(1, hidden_dim)
         self.transformer = nn.TransformerEncoder(
-            num_layers=24,
+            num_layers=num_layers,
             dims=hidden_dim,
             num_heads=num_heads,
-            mlp_dims=hidden_dim * 4,
+            mlp_dims=hidden_dim * mlp_ratio,
         )
         self.norm = nn.LayerNorm(hidden_dim)
 
@@ -191,30 +188,29 @@ class SigLIPEncoder(nn.Module):
         return x
 
 class SAMVisionEncoder(nn.Module):
-    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224):
+    def __init__(self, hidden_dim: int, pretrained: bool, image_size: int = 224,
+                 patch_size: int = 16, num_layers: int = 12, num_heads: int = 12,
+                 mlp_ratio: int = 4):
         super().__init__()
         self.hidden_dim = hidden_dim
 
-        # Calculate num_heads to ensure hidden_dim is divisible
-        num_heads = 12
         while hidden_dim % num_heads != 0:
             num_heads -= 1
 
         self.patch_embed = nn.Conv2d(
             in_channels=3,
             out_channels=hidden_dim,
-            kernel_size=16,
-            stride=16,
+            kernel_size=patch_size,
+            stride=patch_size,
         )
-        patch_size = 16
         num_patches = (image_size // patch_size) ** 2
         self.position_embedding = nn.Embedding(num_patches + 1, hidden_dim)
         self.cls_token = nn.Embedding(1, hidden_dim)
         self.transformer = nn.TransformerEncoder(
-            num_layers=12,
+            num_layers=num_layers,
             dims=hidden_dim,
             num_heads=num_heads,
-            mlp_dims=hidden_dim * 4,
+            mlp_dims=hidden_dim * mlp_ratio,
         )
         self.norm = nn.LayerNorm(hidden_dim)
 
