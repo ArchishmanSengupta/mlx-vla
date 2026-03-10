@@ -7,6 +7,10 @@ import mlx.core as mx
 
 from mlx_vla.models.modeling_vla import VLAForAction
 from mlx_vla.data.normalizer import ActionNormalizer
+from mlx_vla.data.collator import IMAGENET_MEAN, IMAGENET_STD
+
+DEFAULT_PROMPT_TEMPLATE = "In: What action should the robot take to {instruction}?\nOut:"
+
 
 class VLAPipeline:
     def __init__(
@@ -15,6 +19,9 @@ class VLAPipeline:
         tokenizer: Optional[Any] = None,
         device: str = "gpu",
         unnorm_key: str = "bridge_orig",
+        prompt_template: Optional[str] = None,
+        image_mean: Optional[np.ndarray] = None,
+        image_std: Optional[np.ndarray] = None,
     ):
         if isinstance(model, str):
             self.model = VLAForAction.load(model)
@@ -27,6 +34,9 @@ class VLAPipeline:
         # The vision_backbone is not the right key - use dataset/robot config
         self.unnorm_key = unnorm_key
         self.normalizer = ActionNormalizer(unnorm_key)
+        self.prompt_template = prompt_template or DEFAULT_PROMPT_TEMPLATE
+        self.image_mean = np.array(image_mean) if image_mean is not None else IMAGENET_MEAN
+        self.image_std = np.array(image_std) if image_std is not None else IMAGENET_STD
 
     def predict(
         self,
@@ -48,7 +58,7 @@ class VLAPipeline:
 
         if self.tokenizer:
             encoded = self.tokenizer(
-                f"In: What action should the robot take to {language}?\nOut:",
+                self.prompt_template.format(instruction=language),
                 return_tensors="mlx",
             )
             input_ids = encoded.input_ids
@@ -64,6 +74,8 @@ class VLAPipeline:
         )
 
         action_np = np.array(action)
+        if action_np.ndim > 1 and action_np.shape[0] == 1:
+            action_np = action_np.squeeze(0)
         action_unnorm = self.normalizer.unnormalize(action_np)
 
         return action_unnorm
@@ -92,7 +104,7 @@ class VLAPipeline:
         if len(image.shape) == 2:
             image = np.stack([image] * 3, axis=-1)
 
-        image = (image - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
+        image = (image - self.image_mean) / self.image_std
         image = np.transpose(image, (2, 0, 1))
         image = np.expand_dims(image, axis=0)
 
