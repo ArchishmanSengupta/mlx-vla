@@ -45,18 +45,24 @@ class CheckpointCallback(Callback):
     def on_epoch_end(self, trainer: Any, epoch: int, metrics: Dict):
         self._save_checkpoint(trainer, f"epoch-{epoch}")
 
-    def _save_checkpoint(self, trainer: Any, name: str):
+    def _save_checkpoint(self, trainer: Any, name):
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_path = self.output_dir / name
+        checkpoint_path = self.output_dir / str(name)
         checkpoint_path.mkdir(parents=True, exist_ok=True)
 
         trainer.model.save(str(checkpoint_path))
 
+        safe_metrics = {}
+        for k, v in trainer.metrics.items():
+            try:
+                safe_metrics[k] = float(v)
+            except (TypeError, ValueError):
+                safe_metrics[k] = str(v)
         with open(checkpoint_path / "trainer_state.json", "w") as f:
             json.dump({
                 "global_step": trainer.global_step,
                 "epoch": trainer.epoch,
-                "metrics": trainer.metrics,
+                "metrics": safe_metrics,
             }, f)
 
         self.checkpoints.append(str(checkpoint_path))
