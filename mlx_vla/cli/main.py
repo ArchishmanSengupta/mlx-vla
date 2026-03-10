@@ -6,7 +6,7 @@ from mlx_vla.utils.config import load_config, VLAConfigManager
 from mlx_vla.models.modeling_vla import VLAForAction
 from mlx_vla.data.dataset import RLDSDataset, EpisodeDataset
 from mlx_vla.training.trainer import VLATrainer
-from mlx_vla.core.config import VLATrainingArguments
+from mlx_vla.core import VLATrainingArguments
 from mlx_vla.training.lora import apply_lora
 from mlx_vla.inference.pipeline import VLAPipeline
 
@@ -57,7 +57,7 @@ def train_command(args):
             target_modules=cfg.lora.target_modules,
         )
 
-    if cfg.data.dataset_name.startswith("oxe/") or cfg.data.dataset_name in ["bridge_v2", "aloha"]:
+    if cfg.data.dataset_name in RLDSDataset.SUPPORTED_DATASETS or cfg.data.dataset_name.startswith("oxe/"):
         train_dataset = RLDSDataset(cfg.data.dataset_name, split="train")
     else:
         train_dataset = EpisodeDataset(cfg.data.dataset_name, split="train")
@@ -91,11 +91,10 @@ def train_command(args):
     print(f"Training complete! Config saved to {cfg.checkpointing.output_dir}/config.yaml")
 
 def infer_command(args):
-    pipeline = VLAPipeline(model=args.model)
+    pipeline = VLAPipeline(model=args.model, unnorm_key=args.unnorm_key)
     action = pipeline.predict(
         image=args.image,
         language=args.instruction,
-        unnorm_key=args.unnorm_key,
     )
     print(f"Predicted action: {action}")
 
@@ -121,7 +120,7 @@ def main():
     train_parser.add_argument("--config", type=str, help="YAML config file")
     train_parser.add_argument("--model", type=str, help="Model name")
     train_parser.add_argument("--dataset", type=str, help="Dataset name or path")
-    train_parser.add_argument("--use-lora", type=bool, help="Enable LoRA")
+    train_parser.add_argument("--use-lora", action="store_true", default=None, help="Enable LoRA")
     train_parser.add_argument("--lora-rank", type=int, help="LoRA rank")
     train_parser.add_argument("--action-type", type=str, help="Action type")
     train_parser.add_argument("--action-dim", type=int, help="Action dimension")
