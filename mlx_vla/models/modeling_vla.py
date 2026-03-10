@@ -188,14 +188,31 @@ class VLAForAction(nn.Module):
     @classmethod
     def load(cls, path: str) -> "VLAForAction":
         import json
+        from pathlib import Path as _Path
         path = path.rstrip("/")
 
-        with open(f"{path}/config.json", "r") as f:
-            config = json.load(f)
+        config_path = _Path(path) / "config.json"
+        if not config_path.exists():
+            raise FileNotFoundError(
+                f"Model config not found at '{config_path}'. "
+                f"Expected a directory containing config.json and model.npz."
+            )
+
+        try:
+            with open(config_path, "r") as f:
+                config = json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(
+                f"Corrupted config at '{config_path}': {e}. "
+                f"The config.json file is not valid JSON."
+            ) from e
 
         model = cls(**config)
-        # Use strict=False to allow loading weights that match
-        model.load_weights(f"{path}/model.npz", strict=False)
+
+        weights_path = _Path(path) / "model.npz"
+        if weights_path.exists():
+            model.load_weights(str(weights_path), strict=False)
+
         return model
 
 VLA = VLAForAction
