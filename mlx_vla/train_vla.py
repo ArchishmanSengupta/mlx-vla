@@ -63,11 +63,10 @@ def train_vla(
     # Get model configuration
     model_config = get_model_config(model)
 
-    # Create the VLA model
     vla_model = VLAForAction.from_pretrained(
         model_name_or_path=model,
-        action_type=model_config.get("action_type", "discrete"),
-        action_dim=model_config.get("action_dim", 7),
+        action_type=model_config.pop("action_type", "discrete"),
+        action_dim=model_config.pop("action_dim", 7),
         **model_config,
     )
 
@@ -81,7 +80,7 @@ def train_vla(
         lora_rank = kwargs.pop("lora_rank", 8)
         lora_alpha = kwargs.pop("lora_alpha", 16)
         lora_dropout = kwargs.pop("lora_dropout", 0.05)
-        target_modules = kwargs.pop("lora_target_modules", ["q_proj", "v_proj"])
+        target_modules = kwargs.pop("lora_target_modules", ["query_proj", "value_proj"])
 
         vla_model = apply_lora(
             vla_model,
