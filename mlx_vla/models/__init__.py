@@ -5,6 +5,7 @@ from mlx_vla.models.action_heads import (
     DiscreteActionHead,
     DiffusionActionHead,
     ContinuousActionHead,
+    ActionChunkingHead,
 )
 from mlx_vla.models.pretrained import load_pretrained_vision_encoder
 from mlx_vla.models.language import (
@@ -26,6 +27,7 @@ __all__ = [
     "DiscreteActionHead",
     "DiffusionActionHead",
     "ContinuousActionHead",
+    "ActionChunkingHead",
     "load_pretrained_vision_encoder",
     "LanguageModelWrapper",
     "load_language_model",
