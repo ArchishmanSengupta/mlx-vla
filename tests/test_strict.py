@@ -4,6 +4,7 @@ import tempfile
 import json
 import numpy as np
 from pathlib import Path
+from PIL import Image
 
 import mlx.core as mx
 import mlx.nn as nn
@@ -1393,6 +1394,178 @@ class TestPhase3HardcodedValueElimination:
                 continue
             if "4096" in line and "DEFAULT_LM_HIDDEN_DIM" not in line and "import" not in line and "#" not in line:
                 pytest.fail(f"Hardcoded 4096 found at line {i+1}: {line.strip()}")
+
+
+class TestEdgeCaseRegressions:
+    @pytest.fixture(autouse=True)
+    def setup_model(self):
+        from mlx_vla.models.modeling_vla import VLAForAction
+        self.model = VLAForAction(
+            vision_backbone="clip", vision_hidden_dim=64, language_hidden_dim=64,
+            action_type="continuous", action_dim=7, image_size=64,
+        )
+
+    def test_pipeline_rgba_pil(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        img = Image.fromarray(np.random.randint(0, 255, (64, 64, 4), dtype=np.uint8), mode="RGBA")
+        a = pipe.predict(image=img, language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_rgba_numpy(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        img = np.random.randint(0, 255, (64, 64, 4), dtype=np.uint8)
+        a = pipe.predict(image=img, language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_cmyk_pil(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        img = Image.fromarray(np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8)).convert("CMYK")
+        a = pipe.predict(image=img, language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_nonexistent_path(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image="/nonexistent/path.jpg", language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_grayscale_pil(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        img = Image.fromarray(np.random.randint(0, 255, (64, 64), dtype=np.uint8), mode="L")
+        a = pipe.predict(image=img, language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_palette_pil(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        img = Image.fromarray(np.random.randint(0, 255, (64, 64), dtype=np.uint8), mode="L").convert("P")
+        a = pipe.predict(image=img, language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_1x1_image(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.array([[[128, 128, 128]]], dtype=np.uint8), language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_large_image(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.random.randint(0, 255, (500, 500, 3), dtype=np.uint8), language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_float64_numpy(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.random.rand(64, 64, 3).astype(np.float64), language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_grayscale_numpy_2d(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.random.randint(0, 255, (64, 64), dtype=np.uint8), language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_single_channel_numpy(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.random.randint(0, 255, (64, 64, 1), dtype=np.uint8), language="test")
+        assert a.shape == (7,)
+
+    def test_pipeline_empty_language(self):
+        from mlx_vla.inference.pipeline import VLAPipeline
+        pipe = VLAPipeline(model=self.model, unnorm_key="bridge_orig")
+        a = pipe.predict(image=np.random.randint(0, 255, (64, 64, 3), dtype=np.uint8), language="")
+        assert a.shape == (7,)
+
+    def test_collator_nonsquare_image(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        img = np.random.randint(0, 255, (100, 50, 3), dtype=np.uint8)
+        out = c([{"image": img, "action": [0] * 7}])
+        assert out["pixel_values"].shape == (1, 3, 64, 64)
+
+    def test_collator_string_action(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        out = c([{"image": None, "action": "not_an_action"}])
+        assert out["action"].shape == (1, 7)
+        assert out["raw_action"].shape == (1, 7)
+
+    def test_collator_none_action(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        out = c([{"image": None, "action": None}])
+        assert out["action"].shape == (1, 7)
+
+    def test_collator_empty_action_list(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        out = c([{"image": None, "action": []}])
+        assert out["action"].shape == (1, 7)
+
+    def test_collator_short_action(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        out = c([{"image": None, "action": [0.1, 0.2]}])
+        assert out["action"].shape == (1, 7)
+
+    def test_collator_long_action(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        out = c([{"image": None, "action": list(range(20))}])
+        assert out["action"].shape == (1, 7)
+
+    def test_collator_rgba_image(self):
+        from mlx_vla.data.collator import VLAModuleDataCollator
+        c = VLAModuleDataCollator(image_size=64, action_dim=7, max_length=16)
+        img = np.random.randint(0, 255, (64, 64, 4), dtype=np.uint8)
+        out = c([{"image": img, "action": [0] * 7}])
+        assert out["pixel_values"].shape == (1, 3, 64, 64)
+
+    def test_dataset_malformed_json_skipped(self):
+        from mlx_vla.data.dataset import EpisodeDataset
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(os.path.join(tmpdir, "bad.json"), "w") as f:
+                f.write("{invalid json!!!}")
+            with open(os.path.join(tmpdir, "good.json"), "w") as f:
+                json.dump([{"image": "", "action": [0] * 7, "language": "ok"}], f)
+            ds = EpisodeDataset(tmpdir, split="train", image_size=64)
+            assert len(ds) == 1
+
+    def test_load_missing_path_error_message(self):
+        from mlx_vla.models.modeling_vla import VLAForAction
+        with pytest.raises(FileNotFoundError, match="config.json"):
+            VLAForAction.load("/nonexistent/path/model")
+
+    def test_load_corrupted_config_error_message(self):
+        from mlx_vla.models.modeling_vla import VLAForAction
+        with tempfile.TemporaryDirectory() as tmpdir:
+            m = VLAForAction(vision_backbone="clip", vision_hidden_dim=64,
+                             language_hidden_dim=64, action_type="continuous",
+                             action_dim=7, image_size=64)
+            m.save(tmpdir)
+            with open(os.path.join(tmpdir, "config.json"), "w") as f:
+                f.write("{corrupted!")
+            with pytest.raises(ValueError, match="[Cc]orrupted"):
+                VLAForAction.load(tmpdir)
+
+    def test_load_missing_weights_still_works(self):
+        from mlx_vla.models.modeling_vla import VLAForAction
+        with tempfile.TemporaryDirectory() as tmpdir:
+            m = VLAForAction(vision_backbone="clip", vision_hidden_dim=64,
+                             language_hidden_dim=64, action_type="continuous",
+                             action_dim=7, image_size=64)
+            m.save(tmpdir)
+            os.remove(os.path.join(tmpdir, "model.npz"))
+            m2 = VLAForAction.load(tmpdir)
+            out = m2(mx.random.normal((1, 3, 64, 64)))
+            mx.eval(out["action"])
+            assert out["action"].shape[-1] == 7
 
 
 if __name__ == "__main__":
