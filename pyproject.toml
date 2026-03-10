@@ -32,7 +32,6 @@ dependencies = [
     "pillow>=10.0.0",
     "tqdm>=4.65.0",
     "pyyaml>=6.0",
-    "omegaconf>=2.3.0",
 ]
 
 [project.optional-dependencies]
@@ -46,8 +45,11 @@ dev = [
 training = [
     "mlx-lm>=0.1.0",
 ]
+data = [
+    "h5py>=3.0.0",
+]
 all = [
-    "mlx-vla[dev,training]",
+    "mlx-vla[dev,training,data]",
 ]
 
 [project.scripts]
