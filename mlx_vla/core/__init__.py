@@ -10,7 +10,7 @@ from mlx_vla.utils.config import (
     DEFAULT_CONFIG,
 )
 
-__version__ = "0.1.0"
+from mlx_vla._version import __version__
 
 __all__ = [
     "VLAConfigManager",
@@ -59,14 +59,14 @@ class VLATrainingArguments:
         self.weight_decay = weight_decay or cfg.training.weight_decay
         self.max_grad_norm = max_grad_norm or cfg.training.max_grad_norm
         self.lr_scheduler_type = lr_scheduler_type or cfg.training.lr_scheduler_type
-        self.save_strategy = save_strategy or "epoch"
+        self.save_strategy = save_strategy or cfg.checkpointing.save_strategy
         self.save_steps = save_steps or cfg.checkpointing.save_steps
         self.save_total_limit = save_total_limit or cfg.checkpointing.save_total_limit
         self.resume_from_checkpoint = resume_from_checkpoint or cfg.checkpointing.resume_from
         self.logging_steps = logging_steps or cfg.logging.logging_steps
         self.logging_dir = logging_dir or cfg.logging.log_dir
-        self.eval_strategy = eval_strategy or "no"
-        self.eval_steps = eval_steps or 500
+        self.eval_strategy = eval_strategy or cfg.training.eval_strategy
+        self.eval_steps = eval_steps or cfg.training.eval_steps
         self.use_compile = use_compile
         self.max_memory_mb = max_memory_mb
-        self.report_to = report_to or ["tensorboard"]
+        self.report_to = report_to or cfg.logging.report_to
