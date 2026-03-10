@@ -547,7 +547,7 @@ class TestDatasetEdgeCases:
             assert len(dataset) == 1
 
     def test_episode_dataset_empty_steps(self):
-        """Test episode dataset with empty steps."""
+        """Test episode dataset with empty steps are skipped."""
         from mlx_vla.data.dataset import EpisodeDataset
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -556,7 +556,7 @@ class TestDatasetEdgeCases:
 
             dataset = EpisodeDataset(tmpdir)
 
-            assert len(dataset) == 1
+            assert len(dataset) == 0
 
     def test_episode_dataset_malformed_json(self):
         """Test episode dataset with malformed JSON."""
