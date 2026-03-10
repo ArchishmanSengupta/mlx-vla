@@ -5,9 +5,13 @@ import mlx.core as mx
 from typing import Dict, List, Any, Optional
 from PIL import Image
 
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406])
+IMAGENET_STD = np.array([0.229, 0.224, 0.225])
+
+
 class VLAModuleDataCollator:
-    IMAGE_MEAN = np.array([0.485, 0.456, 0.406])
-    IMAGE_STD = np.array([0.229, 0.224, 0.225])
+    IMAGE_MEAN = IMAGENET_MEAN
+    IMAGE_STD = IMAGENET_STD
 
     def __init__(
         self,
@@ -16,12 +20,20 @@ class VLAModuleDataCollator:
         action_normalization: str = "clip_minus_one_to_one",
         tokenizer: Optional[Any] = None,
         action_dim: int = 7,
+        max_length: int = 128,
+        image_mean: Optional[np.ndarray] = None,
+        image_std: Optional[np.ndarray] = None,
     ):
         self.image_size = image_size
         self.normalize_images = normalize_images
         self.action_normalization = action_normalization
         self.tokenizer = tokenizer
         self.action_dim = action_dim
+        self.max_length = max_length
+        if image_mean is not None:
+            self.IMAGE_MEAN = np.array(image_mean)
+        if image_std is not None:
+            self.IMAGE_STD = np.array(image_std)
 
     def __call__(self, batch: List[Dict[str, Any]]) -> Dict[str, mx.array]:
         pixel_values = []
@@ -50,15 +62,15 @@ class VLAModuleDataCollator:
                     encoded = self.tokenizer(
                         step.get("language", ""),
                         padding="max_length",
-                        max_length=128,
+                        max_length=self.max_length,
                         truncation=True,
                         return_tensors="np",
                     )
                     input_ids.append(encoded.input_ids[0])
                     attention_mask.append(encoded.attention_mask[0])
                 else:
-                    input_ids.append(np.zeros(128, dtype=np.int64))
-                    attention_mask.append(np.zeros(128, dtype=np.int64))
+                    input_ids.append(np.zeros(self.max_length, dtype=np.int64))
+                    attention_mask.append(np.zeros(self.max_length, dtype=np.int64))
 
         return {
             "pixel_values": mx.array(np.array(pixel_values)),
@@ -111,7 +123,7 @@ class VLAModuleDataCollator:
 
         if self.normalize_images:
             if image.shape[-1] == 3:
-                image = (image - self.IMAGE_MEAN) / self.IMAGE_STD
+                image = ((image - self.IMAGE_MEAN) / self.IMAGE_STD).astype(np.float32)
 
         if len(image.shape) == 3 and image.shape[-1] == 3:
             image = np.transpose(image, (2, 0, 1))
