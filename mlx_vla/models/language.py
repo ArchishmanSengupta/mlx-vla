@@ -7,6 +7,8 @@ from pathlib import Path
 import mlx.core as mx
 import mlx.nn as nn
 
+from mlx_vla.models._constants import DEFAULT_VOCAB_SIZE, DEFAULT_LM_HIDDEN_DIM
+
 
 class LanguageModelWrapper(nn.Module):
     """Wrapper for language models in VLA architecture.
@@ -88,10 +90,9 @@ def load_language_model(
         except ImportError:
             pass
 
-    # Try loading with transformers
     try:
         return _load_transformers_lm(model_name, hidden_dim, max_seq_length)
-    except ImportError:
+    except (ImportError, OSError, Exception):
         pass
 
     # Fallback to embedding-only
@@ -101,7 +102,7 @@ def load_language_model(
         f"Install mlx-lm or transformers for full LLM support.",
         UserWarning,
     )
-    return _create_embedding_model(hidden_dim or 4096)
+    return _create_embedding_model(hidden_dim or DEFAULT_LM_HIDDEN_DIM)
 
 
 def _load_mlx_lm(
@@ -118,11 +119,11 @@ def _load_mlx_lm(
         # Get hidden dim from model
         if hidden_dim is None:
             if hasattr(model, "config"):
-                hidden_dim = getattr(model.config, "hidden_size", 4096)
+                hidden_dim = getattr(model.config, "hidden_size", DEFAULT_LM_HIDDEN_DIM)
             elif hasattr(model, "embed_dim"):
                 hidden_dim = model.embed_dim
             else:
-                hidden_dim = 4096
+                hidden_dim = DEFAULT_LM_HIDDEN_DIM
 
         wrapper = LanguageModelWrapper(model, hidden_dim, use_full_model=True)
 
@@ -160,7 +161,7 @@ def _load_transformers_lm(
 
     # Get hidden dim
     if hidden_dim is None:
-        hidden_dim = getattr(config, "hidden_size", 4096)
+        hidden_dim = getattr(config, "hidden_size", DEFAULT_LM_HIDDEN_DIM)
 
     # Convert to MLX (placeholder - full conversion not implemented)
     warnings.warn(
@@ -186,7 +187,7 @@ def _load_transformers_lm(
 
 def _create_embedding_model(
     hidden_dim: int,
-    vocab_size: int = 32000,
+    vocab_size: int = DEFAULT_VOCAB_SIZE,
 ) -> Tuple[nn.Module, dict]:
     """Create a simple embedding model as fallback."""
     embedding = nn.Embedding(vocab_size, hidden_dim)
@@ -212,7 +213,7 @@ class VLALanguageEncoder(nn.Module):
 
     def __init__(
         self,
-        vocab_size: int = 32000,
+        vocab_size: int = DEFAULT_VOCAB_SIZE,
         hidden_dim: int = 768,
         num_layers: int = 6,
         num_heads: int = 8,
@@ -269,7 +270,7 @@ class VLALanguageEncoder(nn.Module):
 
 def create_small_language_encoder(
     hidden_dim: int = 768,
-    vocab_size: int = 32000,
+    vocab_size: int = DEFAULT_VOCAB_SIZE,
     num_layers: int = 6,
 ) -> Tuple[VLALanguageEncoder, dict]:
     """Create a small transformer language encoder.
