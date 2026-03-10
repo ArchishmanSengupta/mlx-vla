@@ -21,7 +21,7 @@ DEFAULT_CONFIG = {
         "rank": 8,
         "alpha": 16,
         "dropout": 0.05,
-        "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        "target_modules": ["query_proj", "key_proj", "value_proj", "out_proj"],
     },
     "data": {
         "dataset_name": "bridge_v2",
@@ -38,16 +38,20 @@ DEFAULT_CONFIG = {
         "max_grad_norm": 1.0,
         "gradient_accumulation_steps": 8,
         "lr_scheduler_type": "cosine",
+        "eval_strategy": "no",
+        "eval_steps": 500,
     },
     "checkpointing": {
         "output_dir": "./vla_output",
         "save_steps": 500,
         "save_total_limit": 3,
+        "save_strategy": "epoch",
         "resume_from": None,
     },
     "logging": {
         "logging_steps": 10,
         "log_dir": None,
+        "report_to": ["tensorboard"],
     },
 }
 
@@ -76,7 +80,7 @@ class LoRAConfig:
     rank: int = 8
     alpha: int = 16
     dropout: float = 0.05
-    target_modules: List[str] = field(default_factory=lambda: ["q_proj", "k_proj", "v_proj", "o_proj"])
+    target_modules: List[str] = field(default_factory=lambda: ["query_proj", "key_proj", "value_proj", "out_proj"])
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -109,6 +113,8 @@ class TrainingConfig:
     max_grad_norm: float = 1.0
     gradient_accumulation_steps: int = 8
     lr_scheduler_type: str = "cosine"
+    eval_strategy: str = "no"
+    eval_steps: int = 500
 
     def to_dict(self) -> Dict:
         return asdict(self)
@@ -122,6 +128,7 @@ class CheckpointingConfig:
     output_dir: str = "./vla_output"
     save_steps: int = 500
     save_total_limit: int = 3
+    save_strategy: str = "epoch"
     resume_from: Optional[str] = None
 
     def to_dict(self) -> Dict:
@@ -135,6 +142,7 @@ class CheckpointingConfig:
 class LoggingConfig:
     logging_steps: int = 10
     log_dir: Optional[str] = None
+    report_to: List[str] = field(default_factory=lambda: ["tensorboard"])
 
     def to_dict(self) -> Dict:
         return asdict(self)
