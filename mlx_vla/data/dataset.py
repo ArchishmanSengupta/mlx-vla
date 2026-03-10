@@ -171,8 +171,11 @@ class EpisodeDataset(VLADataset):
     def _load_from_directory(self, data_path: Path) -> List[Dict]:
         episodes = []
         for episode_file in sorted(data_path.glob("*.json")):
-            with open(episode_file, "r") as f:
-                episode_data = json.load(f)
+            try:
+                with open(episode_file, "r") as f:
+                    episode_data = json.load(f)
+            except (json.JSONDecodeError, ValueError):
+                continue
 
             if isinstance(episode_data, list):
                 raw_steps = episode_data
