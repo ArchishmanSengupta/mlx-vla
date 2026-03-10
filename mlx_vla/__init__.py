@@ -22,7 +22,7 @@ from mlx_vla.models.vision import VisionEncoder, CLIPVisionEncoder, DINOv2Encode
 from mlx_vla.core import VLATrainingArguments
 from mlx_vla.train_vla import train_vla
 
-__version__ = "0.1.0"
+from mlx_vla._version import __version__
 
 __all__ = [
     "VLAConfigManager",
