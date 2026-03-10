@@ -1,11 +1,12 @@
 import os
 import json
-import h5py
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Iterator
 from PIL import Image
 import mlx.core as mx
+
+DEFAULT_ACTION_DIM = 7
 
 class VLADataset:
     def __init__(
@@ -15,12 +16,14 @@ class VLADataset:
         image_size: int = 224,
         normalize_actions: bool = True,
         action_normalization: str = "clip_minus_one_to_one",
+        action_dim: int = DEFAULT_ACTION_DIM,
     ):
         self.data_path = Path(data_path)
         self.split = split
         self.image_size = image_size
         self.normalize_actions = normalize_actions
         self.action_normalization = action_normalization
+        self.action_dim = action_dim
 
         self.episodes = self._load_episodes()
 
@@ -115,6 +118,10 @@ class BridgeDataset(VLADataset):
         if not split_file.exists():
             raise FileNotFoundError(f"Split file not found: {split_file}")
 
+        try:
+            import h5py
+        except ImportError:
+            raise ImportError("h5py is required for BridgeDataset. Install with: pip install h5py")
         episodes = []
         with h5py.File(split_file, "r") as f:
             for episode_id in f.keys():
@@ -142,8 +149,9 @@ class EpisodeDataset(VLADataset):
         data_path: str,
         split: str = "train",
         image_size: int = 224,
+        action_dim: int = DEFAULT_ACTION_DIM,
     ):
-        super().__init__(data_path, split, image_size)
+        super().__init__(data_path, split, image_size, action_dim=action_dim)
 
     def _load_episodes(self) -> List[Dict]:
         data_path = Path(self.data_path)
@@ -166,13 +174,22 @@ class EpisodeDataset(VLADataset):
             with open(episode_file, "r") as f:
                 episode_data = json.load(f)
 
+            if isinstance(episode_data, list):
+                raw_steps = episode_data
+            elif isinstance(episode_data, dict):
+                raw_steps = episode_data.get("steps", [episode_data])
+            else:
+                continue
+
             steps = []
-            for step in episode_data.get("steps", []):
+            for step in raw_steps:
+                if not isinstance(step, dict):
+                    continue
                 img_path_str = step.get("image")
                 if img_path_str is None or img_path_str == "":
                     image = np.zeros((self.image_size, self.image_size, 3), dtype=np.uint8)
                 else:
-                    img_path = data_path / img_path_str
+                    img_path = data_path / str(img_path_str)
                     if img_path.exists():
                         image = np.array(Image.open(img_path).resize((self.image_size, self.image_size)))
                     else:
@@ -180,11 +197,12 @@ class EpisodeDataset(VLADataset):
 
                 steps.append({
                     "image": image,
-                    "action": np.array(step.get("action", [0] * 7)),
+                    "action": np.array(step.get("action", [0] * self.action_dim)),
                     "language": step.get("language", ""),
                 })
 
-            episodes.append({"steps": steps})
+            if steps:
+                episodes.append({"steps": steps})
 
         return episodes
 
@@ -197,6 +215,10 @@ class EpisodeDataset(VLADataset):
         return [data]
 
     def _load_from_hdf5(self, data_path: Path) -> List[Dict]:
+        try:
+            import h5py
+        except ImportError:
+            raise ImportError("h5py is required for HDF5 datasets. Install with: pip install h5py")
         episodes = []
         with h5py.File(data_path, "r") as f:
             for episode_id in f.keys():
